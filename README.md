@@ -232,5 +232,5 @@ are never duplicated.
 4. **Audit log** — Store a history of status changes and who made them (using a `issue_events` table or Laravel's `spatie/laravel-activitylog`).
 5. **Test coverage** — Add PHPUnit feature tests for the API endpoints and a unit test for `SummaryService`'s rules-based fallback.
 6. **AI model abstraction** — Allow the model name (`gemini-2.0-flash`) and provider to be configured via `.env` so teams can switch to GPT-4o, Claude, or a local Ollama endpoint without a code change.
-7. **Retry & caching** — Retry failed OpenAI calls with exponential back-off; cache summaries to avoid redundant API calls on re-reads.
+7. **Retry & caching** — Retry failed Gemini calls with exponential back-off; cache summaries to avoid redundant API calls on re-reads.
 # issue-summary-system
