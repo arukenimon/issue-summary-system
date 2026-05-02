@@ -4,6 +4,18 @@ A production-style Laravel + React (Inertia.js) application for a support/operat
 
 ---
 
+## Screenshots
+
+**Issue list** — sorted by urgency, colour-coded badges, escalation indicators, and inline filters:
+
+![Issue list](public/SS1.png)
+
+**Issue detail** — AI-generated smart summary, suggested next action, and escalation banner:
+
+![Issue detail](public/SS2.png)
+
+---
+
 ## Stack
 
 | Layer      | Technology                                    |
@@ -11,7 +23,7 @@ A production-style Laravel + React (Inertia.js) application for a support/operat
 | Backend    | PHP 8.2 / Laravel 13                          |
 | Frontend   | React 18 + Inertia.js (no full-page reloads)  |
 | Styling    | Tailwind CSS v3                               |
-| Database   | SQLite (default) — swappable to MySQL/Postgres |
+| Database   | MySQL                                         |
 | AI         | Google Gemini `gemini-2.0-flash` with rules-based fallback |
 | Build tool | Vite 8                                        |
 
@@ -52,17 +64,23 @@ built-in rules-based summary engine — no configuration required.
 
 ### 3. Database setup
 
-The project uses SQLite by default (no server required).
+The project uses MySQL. Create a database and configure `.env`:
+
+```
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=issue_summary_system
+DB_USERNAME=root
+DB_PASSWORD=your-password
+```
+
+Then run:
 
 ```bash
-# Create the database file (already exists if you cloned the repo)
-touch database/database.sqlite
-
 php artisan migrate
 php artisan db:seed          # loads 10 realistic sample issues
 ```
-
-To use MySQL/Postgres instead, update `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE`, etc. in `.env`.
 
 ### 4. Run the application
 
@@ -194,9 +212,8 @@ routes/
 
 ## Architecture & Key Decisions
 
-### Why SQLite?
-SQLite requires zero server setup, ships with PHP, and is sufficient for a take-home demo.
-The Laravel database layer is identical for MySQL/Postgres — switching is a one-line `.env` change.
+### Why MySQL?
+MySQL is a well-established relational database that handles concurrent writes cleanly, supports full-text indexing for future search features, and is the standard choice in production Laravel deployments. The schema is simple (a single `issues` table) so any relational database would work, but MySQL was chosen for its familiarity and production parity.
 
 ### Why Inertia.js?
 Inertia bridges Laravel's server-side routing and React components without building a separate
