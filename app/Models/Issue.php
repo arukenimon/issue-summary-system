@@ -18,6 +18,7 @@ class Issue extends Model
         'status',
         'summary',
         'next_action',
+        'summary_status',
         'is_escalated',
     ];
 
