@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\IssueController;
 use Illuminate\Support\Facades\Route;
 
@@ -11,6 +12,8 @@ Route::resource('issues', IssueController::class); // resource() is a shorthand 
 // POST /issues
 // GET /issues/{issue}
 // GET /issues/{issue}/edit
-// PATCH /issues/{issue}    
+// PATCH /issues/{issue}
 // DELETE /issues/{issue}
+
+Route::post('issues/{issue}/comments', [CommentController::class, 'store'])->name('issues.comments.store');
 
