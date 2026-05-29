@@ -4,16 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreIssueRequest;
 use App\Http\Requests\UpdateIssueRequest;
+use App\Jobs\GenerateIssueSummary;
 use App\Models\Issue;
-use App\Services\SummaryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class IssueController extends Controller
 {
-    // SummaryService is used to generate a summary and suggested next action for an issue
-    public function __construct(private readonly SummaryService $summaryService) {}
+    // Fields that feed the generated summary; changing any of them re-triggers it.
+    private const SUMMARY_FIELDS = ['title', 'description', 'priority', 'category'];
 
     public function index(Request $request): Response
     {
@@ -49,19 +49,23 @@ class IssueController extends Controller
         $data['status'] = $data['status'] ?? 'open';
 
         $issue = new Issue($data);
+        // Summary fields are populated later by the job; set them explicitly so the
+        // create response returns the full, predictable resource shape.
+        $issue->summary        = null;
+        $issue->next_action    = null;
+        $issue->summary_status = 'pending';
         $issue->refreshEscalation();
-
-        $generated = $this->summaryService->generate($issue);
-        $issue->summary     = $generated['summary'];
-        $issue->next_action = $generated['next_action'];
         $issue->save();
 
+        // Summary/next action are produced out of band so the request returns fast.
+        GenerateIssueSummary::dispatch($issue);
+
         if ($request->wantsJson()) {
-            return response()->json($issue, 201);
+            return response()->json($issue, 202);
         }
 
         return redirect()->route('issues.show', $issue)
-            ->with('success', 'Issue created successfully.');
+            ->with('success', 'Issue created. The summary is being generated.');
     }
 
     public function show(Issue $issue): Response
@@ -87,19 +91,21 @@ class IssueController extends Controller
 
     public function update(UpdateIssueRequest $request, Issue $issue)
     {
-        $data = $request->validated();
-
-        $issue->fill($data);
+        $issue->fill($request->validated());
         $issue->refreshEscalation();
 
-        // Regenerate summary if content fields changed
-        if (array_intersect(array_keys($data), ['title', 'description', 'priority', 'category'])) {
-            $generated = $this->summaryService->generate($issue);
-            $issue->summary     = $generated['summary'];
-            $issue->next_action = $generated['next_action'];
+        // Re-trigger generation only when a summary-affecting field actually changed.
+        // Updating status alone must not regenerate the summary.
+        $shouldRegenerate = $issue->isDirty(self::SUMMARY_FIELDS);
+        if ($shouldRegenerate) {
+            $issue->summary_status = 'pending';
         }
 
         $issue->save();
+
+        if ($shouldRegenerate) {
+            GenerateIssueSummary::dispatch($issue);
+        }
 
         if ($request->wantsJson()) {
             return response()->json($issue);
