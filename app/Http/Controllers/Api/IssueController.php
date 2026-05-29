@@ -5,15 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreIssueRequest;
 use App\Http\Requests\UpdateIssueRequest;
+use App\Jobs\GenerateIssueSummary;
 use App\Models\Issue;
-use App\Services\SummaryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class IssueController extends Controller
 {
-    // SummaryService is used to generate a summary and suggested next action for an issue
-    public function __construct(private readonly SummaryService $summaryService) {}
+    // Fields that feed the generated summary; changing any of them re-triggers it.
+    private const SUMMARY_FIELDS = ['title', 'description', 'priority', 'category'];
 
     public function index(Request $request): JsonResponse
     {
@@ -34,14 +34,19 @@ class IssueController extends Controller
         $data['status'] = $data['status'] ?? 'open';
 
         $issue = new Issue($data);
+        // Summary fields are populated later by the job; set them explicitly so the
+        // create response returns the full, predictable resource shape.
+        $issue->summary        = null;
+        $issue->next_action    = null;
+        $issue->summary_status = 'pending';
         $issue->refreshEscalation();
-
-        $generated = $this->summaryService->generate($issue);
-        $issue->summary     = $generated['summary'];
-        $issue->next_action = $generated['next_action'];
         $issue->save();
 
-        return response()->json($issue, 201);
+        // Summary/next action are produced out of band so the request returns fast.
+        GenerateIssueSummary::dispatch($issue);
+
+        // 202 Accepted: the issue exists, but its summary is still being generated.
+        return response()->json($issue, 202);
     }
 
     public function show(Issue $issue): JsonResponse
@@ -51,18 +56,21 @@ class IssueController extends Controller
 
     public function update(UpdateIssueRequest $request, Issue $issue): JsonResponse
     {
-        $data = $request->validated();
-
-        $issue->fill($data);
+        $issue->fill($request->validated());
         $issue->refreshEscalation();
 
-        if (array_intersect(array_keys($data), ['title', 'description', 'priority', 'category'])) {
-            $generated = $this->summaryService->generate($issue);
-            $issue->summary     = $generated['summary'];
-            $issue->next_action = $generated['next_action'];
+        // Re-trigger generation only when a summary-affecting field actually changed.
+        // Updating status alone must not regenerate the summary.
+        $shouldRegenerate = $issue->isDirty(self::SUMMARY_FIELDS);
+        if ($shouldRegenerate) {
+            $issue->summary_status = 'pending';
         }
 
         $issue->save();
+
+        if ($shouldRegenerate) {
+            GenerateIssueSummary::dispatch($issue);
+        }
 
         return response()->json($issue);
     }
