@@ -12,6 +12,9 @@ class IssueSeeder extends Seeder
 
     public function run(): void
     {
+        // Seeded summaries are generated synchronously here so the dataset is fully
+        // populated without needing a queue worker running during setup. At runtime
+        // the same generation happens asynchronously via GenerateIssueSummary.
         $samples = [
             [
                 'title'       => 'Login page returns 500 error for SSO users',
@@ -19,6 +22,10 @@ class IssueSeeder extends Seeder
                 'priority'    => 'critical',
                 'category'    => 'bug',
                 'status'      => 'open',
+                'comments'    => [
+                    ['author_name' => 'Priya Nair',    'body' => 'Confirmed on staging too — the IdP callback throws before the session is created.'],
+                    ['author_name' => 'Marcus Holt',   'body' => 'Rolling back the auth middleware change from this morning as a first step.'],
+                ],
             ],
             [
                 'title'       => 'Database replication lag exceeding 30 seconds',
@@ -26,6 +33,9 @@ class IssueSeeder extends Seeder
                 'priority'    => 'high',
                 'category'    => 'infrastructure',
                 'status'      => 'in_progress',
+                'comments'    => [
+                    ['author_name' => 'Dana Kim', 'body' => 'IOPS on the replica is maxed out during the window. Looks like the new instance class has a lower baseline.'],
+                ],
             ],
             [
                 'title'       => 'Unauthenticated users can access admin API endpoints',
@@ -33,6 +43,10 @@ class IssueSeeder extends Seeder
                 'priority'    => 'critical',
                 'category'    => 'security',
                 'status'      => 'open',
+                'comments'    => [
+                    ['author_name' => 'Security Bot', 'body' => 'Tracking as SEC-2026-014. Please do not discuss details outside this thread.'],
+                    ['author_name' => 'Lena Ortiz',   'body' => 'Added a temporary WAF rule blocking the spoofed header while we patch the middleware.'],
+                ],
             ],
             [
                 'title'       => 'Add bulk export to CSV from the issue list',
@@ -40,6 +54,9 @@ class IssueSeeder extends Seeder
                 'priority'    => 'medium',
                 'category'    => 'feature',
                 'status'      => 'open',
+                'comments'    => [
+                    ['author_name' => 'Tom Reilly', 'body' => 'Compliance specifically needs the created_at in UTC. Worth confirming the column order with them.'],
+                ],
             ],
             [
                 'title'       => 'Email notifications not delivered to @contractor.example.com addresses',
@@ -47,6 +64,7 @@ class IssueSeeder extends Seeder
                 'priority'    => 'high',
                 'category'    => 'bug',
                 'status'      => 'open',
+                'comments'    => [],
             ],
             [
                 'title'       => 'Scheduled report job times out after 5 minutes',
@@ -54,6 +72,9 @@ class IssueSeeder extends Seeder
                 'priority'    => 'medium',
                 'category'    => 'infrastructure',
                 'status'      => 'open',
+                'comments'    => [
+                    ['author_name' => 'Dana Kim', 'body' => 'Chunking the export into 50k-row batches dropped the runtime to ~90s locally.'],
+                ],
             ],
             [
                 'title'       => 'Dark mode support for the web dashboard',
@@ -61,6 +82,7 @@ class IssueSeeder extends Seeder
                 'priority'    => 'low',
                 'category'    => 'feature',
                 'status'      => 'open',
+                'comments'    => [],
             ],
             [
                 'title'       => 'Incorrect timezone displayed on issue timestamps',
@@ -68,6 +90,9 @@ class IssueSeeder extends Seeder
                 'priority'    => 'medium',
                 'category'    => 'bug',
                 'status'      => 'resolved',
+                'comments'    => [
+                    ['author_name' => 'Priya Nair', 'body' => 'Fixed by formatting on the client with the profile timezone. Verified for AEST and PST.'],
+                ],
             ],
             [
                 'title'       => 'Upgrade Node.js runtime from v18 to v22 LTS',
@@ -75,6 +100,7 @@ class IssueSeeder extends Seeder
                 'priority'    => 'low',
                 'category'    => 'infrastructure',
                 'status'      => 'closed',
+                'comments'    => [],
             ],
             [
                 'title'       => 'Search results do not return partial matches',
@@ -82,19 +108,31 @@ class IssueSeeder extends Seeder
                 'priority'    => 'medium',
                 'category'    => 'feature',
                 'status'      => 'in_progress',
+                'comments'    => [
+                    ['author_name' => 'Marcus Holt', 'body' => 'Prototyped with a MySQL FULLTEXT index — relevance ordering is much better than LIKE.'],
+                ],
             ],
         ];
 
         foreach ($samples as $sample) {
+            $comments = $sample['comments'] ?? [];
+            unset($sample['comments']);
+
             $issue = new Issue($sample);
             $issue->refreshEscalation();
 
             $generated = $this->summaryService->generate($issue);
-            $issue->summary     = $generated['summary'];
-            $issue->next_action = $generated['next_action'];
+            $issue->summary        = $generated['summary'];
+            $issue->next_action    = $generated['next_action'];
+            $issue->summary_status = 'ready';
             $issue->save();
+
+            if ($comments) {
+                $issue->comments()->createMany($comments);
+            }
         }
 
-        $this->command->info('Seeded ' . count($samples) . ' sample issues.');
+        $commentTotal = collect($samples)->sum(fn ($s) => count($s['comments'] ?? []));
+        $this->command->info('Seeded ' . count($samples) . ' issues with ' . $commentTotal . ' comments.');
     }
 }

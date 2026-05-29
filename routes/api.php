@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\IssueController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,4 +17,6 @@ Route::apiResource('issues', IssueController::class)->names('api.issues');// GET
 // GET /api/issues/{issue}
 // PATCH /api/issues/{issue}
 // DELETE /api/issues/{issue}
+
+Route::post('issues/{issue}/comments', [CommentController::class, 'store'])->name('api.issues.comments.store');
 

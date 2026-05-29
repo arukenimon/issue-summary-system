@@ -71,7 +71,8 @@ class IssueController extends Controller
     public function show(Issue $issue): Response
     {
         return Inertia::render('Issues/Show', [
-            'issue'      => $issue,
+            // Eager-load comments so the detail view never triggers N+1 queries.
+            'issue'      => $issue->load('comments'),
             'priorities' => Issue::priorities(),
             'categories' => Issue::categories(),
             'statuses'   => Issue::statuses(),
@@ -81,7 +82,7 @@ class IssueController extends Controller
     public function edit(Issue $issue): Response
     {
         return Inertia::render('Issues/Show', [
-            'issue'      => $issue,
+            'issue'      => $issue->load('comments'),
             'priorities' => Issue::priorities(),
             'categories' => Issue::categories(),
             'statuses'   => Issue::statuses(),

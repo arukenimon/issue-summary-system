@@ -51,7 +51,8 @@ class IssueController extends Controller
 
     public function show(Issue $issue): JsonResponse
     {
-        return response()->json($issue);
+        // Eager-load comments so the single-issue view never triggers N+1 queries.
+        return response()->json($issue->load('comments'));
     }
 
     public function update(UpdateIssueRequest $request, Issue $issue): JsonResponse

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Issue extends Model
 {
@@ -26,6 +27,12 @@ class Issue extends Model
     protected $casts = [
         'is_escalated' => 'boolean',
     ];
+
+    // An issue has zero or more comments from team members.
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class);
+    }
 
     // Escalation rule: high/critical priority that is still open or in-progress
     public function shouldEscalate(): bool
